@@ -17,8 +17,8 @@
 #include <ctype.h>
 #include <mpi.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,14 +26,18 @@
 #include "sha1.c"
 
 /* Defines the alphanumeric character set: */
+char *alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+char *numeric = "0123456789";
 char *alpha_num = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
+int hashes = 0, pw_found = 0, rank;
 /* Pointer to the current valid character set */
 char *valid_chars;
 
 /* When the password is found, we'll store it here: */
-char found_pw[128] = { 0 };
-
+char found_pw[128] = {0};
+MPI_Request sendRequest, recRequest;
+int comm_sz;
 /**
  * Generates passwords in order (brute-force) and checks them against a
  * specified target hash.
@@ -43,81 +47,167 @@ char found_pw[128] = { 0 };
  *  - max_length - maximum length of the password string to generate
  */
 bool crack(char *target, char *str, int max_length) {
-    int curr_len = strlen(str);
-    char *strcp = calloc(max_length + 1, sizeof(char));
-    strcpy(strcp, str);
+  int curr_len = strlen(str);
+  char *strcp = calloc(max_length + 1, sizeof(char));
+  strcpy(strcp, str);
 
-    /* We'll copy the current string and then add the next character to it. So
-     * if we start with 'a', then we'll append 'aa', and so on. */
-    int i;
-    for (i = 0; i < strlen(valid_chars); ++i) {
-        strcp[curr_len] = valid_chars[i];
-        if (curr_len + 1 < max_length) {
-            bool found = crack(target, strcp, max_length);
-            if (found == true) {
-                return true;
-            }
-        } else {
-            /* Only check the hash if our string is long enough */
-            char hash[41];
-            sha1sum(hash, strcp);
-            /* TODO: This prints way too often... */
-            printf("%s -> %s\n", strcp, hash);
-            if (strcmp(hash, target) == 0) {
-                /* We found a match! */
-                strcpy(found_pw, strcp);
-                return true;
-            }
-        }
+  /* We'll copy the current string and then add the next character to it. So
+   * if we start with 'a', then we'll append 'aa', and so on. */
+  int i;
+  for (i = 0; i < strlen(valid_chars); ++i) {
+    MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &pw_found, MPI_STATUS_IGNORE);
+    if (pw_found) {
+      MPI_Recv(found_pw, 100, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      return true;
     }
+    strcp[curr_len] = valid_chars[i];
+    if (curr_len + 1 < max_length) {
+      bool found = crack(target, strcp, max_length);
+      if (found == true) {
+        return true;
+      }
+    } else {
+      /* Only check the hash if our string is long enough */
+      char hash[41];
+      sha1sum(hash, strcp);
+      // for every million
+      if (hashes % 1000000 == 0) {
+        printf("[%d|%d] %s -> %s\n", rank, hashes, strcp, hash);
+      }
+      hashes++;
+      if (strcmp(hash, target) == 0) {
+        /* We found a match! */
+        strcpy(found_pw, strcp);
+        int i;
+        for (i = 0; i < comm_sz; i++) {
+          MPI_Isend(found_pw, max_length, MPI_CHAR, i, 0, MPI_COMM_WORLD, &sendRequest);
+        }
+        return true;
+      }
+    }
+  }
 
-    free(strcp);
-    return false;
+  free(strcp);
+  return false;
 }
 
 /**
  * Modifies a string to only contain uppercase characters.
  */
 void uppercase(char *string) {
-    int i;
-    for (i = 0; string[i] != '\0'; i++) {
-        string[i] = toupper(string[i]);
-    }
+  int i;
+  for (i = 0; string[i] != '\0'; i++) {
+    string[i] = toupper(string[i]);
+  }
 }
 
 int main(int argc, char *argv[]) {
 
-    if (argc < 3 || argc > 4) {
-        printf("Usage: mpirun %s num-chars hash [valid-chars]\n", argv[0]);
-        printf("  Options for valid-chars: numeric, alpha, alphanum\n");
-        printf("  (defaults to 'alphanum')\n");
-        return 0;
-    }
-
-    /* TODO: We need some sanity checking here... */
-    int length = atoi(argv[1]);
-    char *target = argv[2];
-    valid_chars = alpha_num;
-
-    /* TODO: Print out job information here (valid characters, number of
-     * processes, etc). */
-
-    crack(target, "", length);
-
-    /* TODO: the 'crack' call above starts with a blank string, and then
-     * proceeds to add characters one by one, in order. To parallelize this, we
-     * need to make each process start with a specific character. Kind of like
-     * the following:
-    int i;
-    for (i = 0; i < strlen(valid_chars); ++i) {
-        char start_str[2] = { valid_chars[i], '\0' };
-        bool found = crack(target, start_str, length);
-    }
-    */
-
-    if (strlen(found_pw) > 0) {
-        printf("Recovered password: %s\n", found_pw);
-    }
-
+  if (argc < 3 || argc > 4) {
+    printf("Usage: mpirun %s num-chars hash [valid-chars]\n", argv[0]);
+    printf("  Options for valid-chars: numeric, alpha, alphanum\n");
+    printf("  (defaults to 'alphanum')\n");
     return 0;
+  }
+
+  MPI_Init(&argc, &argv);
+
+  int comm_sz;
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
+
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  char hostname[MPI_MAX_PROCESSOR_NAME];
+  int name_sz;
+  MPI_Get_processor_name(hostname, &name_sz);
+
+  /* We need some sanity checking here... */
+  int length = atoi(argv[1]);
+  char *target = argv[2];
+  char *type = argv[3];
+
+  uppercase(target);
+  if (strcmp(type, "alpha") == 0) {
+    valid_chars = alpha;
+  } else if (strcmp(type, "numeric") == 0) {
+    valid_chars = numeric;
+  } else {
+    //set alphanum as default
+    valid_chars = alpha_num;
+  }
+  //check hash length
+  if (strlen(argv[2]) != 40) {
+    if (rank == 0) {
+      printf("Hash length is NOT valid. \n");
+    }
+    return 1;
+  }
+  //check password length
+  if (atoi(argv[1]) <= 0) {
+    if (rank == 0) {
+      printf("Password must be AT LEAST one character! \n");
+    }
+    return 1;
+}
+
+
+  double time = MPI_Wtime();
+  if (rank == 0) {
+  /* Print out job information here (valid characters, number of
+     * processes, etc). */
+    printf("Starting parallel password cracker.\n");
+    printf("Number of processes: %d\n", comm_sz);
+    printf("Coordinator node: %s\n", hostname);
+    printf("Valid characters: %s (%lu)\n", valid_chars, strlen(valid_chars));
+    printf("Target password length: %d\n", length);
+    printf("Target hash: %s\n", target);
+  }
+  int count = strlen(valid_chars) / comm_sz;
+  int end;
+  int start = rank*count;
+  
+  
+  if (rank == comm_sz-1) {
+    end = strlen(valid_chars);
+  } else {
+    end = (rank*count)+count;
+  }
+
+  bool found = false;
+  int i;
+  for (i = start; i < end && !found; i++) {
+    char str_start[2] = {valid_chars[i], 0};
+    found = crack(target, str_start, length);
+  }
+
+  if (!pw_found && found ) {
+    for (int j = 0; j < comm_sz; j++)
+      if (j != rank)
+        MPI_Send(found_pw, 100, MPI_CHAR, j, 0, MPI_COMM_WORLD);
+  }
+
+  int hash_total = 0;
+  MPI_Reduce(&hashes, &hash_total, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  /* Password check to finalize if found*/
+  MPI_Iprobe(MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &pw_found, MPI_STATUS_IGNORE);
+
+  if (pw_found)
+    MPI_Recv(found_pw, 100, MPI_CHAR, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+  /* Print time/process stats when complete */
+  if (rank == 0) {
+    printf("Operation complete.\n");
+    printf("Time elapsed: %.10lf\n", MPI_Wtime()-time);
+    printf("Total passwords hashed: %d\n", hash_total);
+
+    if (strlen(found_pw) > 0)
+      printf("Recovered password: %s\n", found_pw);
+    else
+      printf("FAILED to recover password!\n");
+  }
+
+  MPI_Finalize();
+
+  return 0;
 }
