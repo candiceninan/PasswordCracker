@@ -10,7 +10,18 @@ Edit this README.md file to answer the following questions:
 
 Choose five entries from the password database and recover the passwords. List the username + password combinations here, along with the run time of your program and the number of hashes computed per second.
 
-(fill in entries here)
+LIU
+Starting parallel password cracker.
+Number of processes: 24
+Coordinator node: jet01
+Valid characters: abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ (52)
+Target password length: 4
+Target hash: A3A73B6DFA8F4CAEDD0349F676AE46B39BDB7FBD
+Operation complete.
+Time elapsed: 0.1787030697
+Total passwords hashed: 325646
+Recovered password: Meow
+
 
 ### Performance Benchmarking (1 pts)
 
