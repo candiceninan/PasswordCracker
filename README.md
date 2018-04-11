@@ -30,7 +30,9 @@ Recovered password: M0kaY
 
 Carmen
 Target hash: 64369A22CBC5686E2CCF609AAE16FE42FA1178B4
-
+Time elapsed: 4016.43s
+Total passwords hashed: -1668652398 (-415456.73/s)
+Recovered password: Bloink
 
 
 
@@ -38,10 +40,15 @@ Target hash: 64369A22CBC5686E2CCF609AAE16FE42FA1178B4
 
 Choose one of the password hashes from the database (preferably one that runs for a while). Compare the run time with 4, 16, 32, and 64 processes. You'll need to run on the jet machines to do this. List the speedup and parallel efficiency for each.
 
-(your answer)
+Aditya
+4 - 450.05s
+16 - 5.45s
+32 - 136.41s
+64 - 
+
 
 ### Algorithmic Trade-offs (1pts)
 
 Brute-forcing passwords can take some time. What might be a better approach?  On the other hand, what is one guarantee our algorithm can provide that others may not be able to?
 
-(your answer)
+A better approach might be to use a database with a dictionary of words that we can utilize to compare passwords in order to speed up the process instead of starting from the bottom. We guarantee that all the possible combinations will be checked and will definitely find the password. 
