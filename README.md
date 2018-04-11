@@ -31,8 +31,14 @@ Recovered password: M0kaY
 Carmen
 Target hash: 64369A22CBC5686E2CCF609AAE16FE42FA1178B4
 Time elapsed: 4016.43s
-Total passwords hashed: -1668652398 (-415456.73/s)
+Total passwords hashed: 1668652398 (415456.73/s)
 Recovered password: Bloink
+
+Erika
+Target hash: 250E77F12A5AB6972A0895D290C4792F0A326EA8
+Time elapsed: 3067.58s
+Total passwords hashed: 2352625377 (237373.57/s)
+Recovered password: banana
 
 
 
@@ -41,11 +47,25 @@ Recovered password: Bloink
 Choose one of the password hashes from the database (preferably one that runs for a while). Compare the run time with 4, 16, 32, and 64 processes. You'll need to run on the jet machines to do this. List the speedup and parallel efficiency for each.
 
 Aditya
-4 - 450.05s
-16 - 5.45s
-32 - 136.41s
-64 - 
 
+4 - 
+Time elapsed: 450.05s
+Total passwords hashed: 159438483 (354268.60/s)
+
+16 - 
+Time elapsed: 5.45s
+Total passwords hashed: 8652248 (1587712.97/s)
+
+
+32 - 
+Time elapsed: 136.41s
+Total passwords hashed: 228337181 (1673856.93/s)
+
+64 - 
+Time elapsed: more than 2 hours
+Total passwords hashed: > 100000000 
+
+16 seemed to be the most efficient, while 64 took the longest. 4 was too little and 32 was an effective time compared to 4 and 64. We see the lower numbers taking some time and as you increase the number of processes above the number you have (24 in the case of jets) it will slow down. 
 
 ### Algorithmic Trade-offs (1pts)
 
