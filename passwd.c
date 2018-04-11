@@ -181,9 +181,9 @@ int main(int argc, char *argv[]) {
   }
 
   if (!pw_found && found ) {
-    for (int j = 0; j < comm_sz; j++)
-      if (j != rank)
-        MPI_Send(found_pw, 100, MPI_CHAR, j, 0, MPI_COMM_WORLD);
+    for (i = 0; i < comm_sz; i++)
+      if (i != rank)
+        MPI_Send(found_pw, 100, MPI_CHAR, i, 0, MPI_COMM_WORLD);
   }
 
   int hash_total = 0;
@@ -198,8 +198,8 @@ int main(int argc, char *argv[]) {
   /* Print time/process stats when complete */
   if (rank == 0) {
     printf("Operation complete.\n");
-    printf("Time elapsed: %.10lf\n", MPI_Wtime()-time);
-    printf("Total passwords hashed: %d\n", hash_total);
+    printf("Time elapsed: %.2fs\n", MPI_Wtime()-time);
+    printf("Total passwords hashed: %d (%.2f/s)\n", hash_total, hash_total/(MPI_Wtime()-time));
 
     if (strlen(found_pw) > 0)
       printf("Recovered password: %s\n", found_pw);
